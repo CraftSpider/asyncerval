@@ -59,7 +59,7 @@ use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::time::Duration;
-use tokio::task::JoinError;
+use tokio::task::JoinHandle;
 use tokio::time;
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -161,7 +161,7 @@ where
     }
 
     /// Spawn an interval and return the handle to await its completion
-    pub fn spawn(self) -> impl Future<Output = Result<(), JoinError>> {
+    pub fn spawn(self) -> JoinHandle<()> {
         let task = async move {
             let opts = self.options;
 
@@ -245,7 +245,7 @@ where
     }
 
     /// Complete the interval and spawn it, returning the handle to await its completion
-    pub fn spawn(self, data: T) -> impl Future<Output = Result<(), JoinError>> {
+    pub fn spawn(self, data: T) -> JoinHandle<()> {
         self.build(data).spawn()
     }
 }
