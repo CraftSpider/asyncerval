@@ -1,0 +1,18 @@
+[package]
+name = "asyncerval"
+version = "0.1.0"
+edition = "2021"
+description = "Async interval handler"
+license = "MIT OR Apache-2.0"
+keywords = ["async", "interval", "tokio"]
+categories = ["asynchronous"]
+repository = "https://github.com/CraftSpider/asyncerval"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.23", default-features = false, features = ["time", "rt"] }
+
+[dev-dependencies]
+tokio = { version = "1.23", features = ["macros", "rt-multi-thread"] }
