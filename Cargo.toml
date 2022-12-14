@@ -13,6 +13,7 @@ readme = "README.md"
 
 [dependencies]
 tokio = { version = "1.23", default-features = false, features = ["time", "rt"] }
+time = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 tokio = { version = "1.23", features = ["macros", "rt-multi-thread"] }
