@@ -4,6 +4,7 @@
 //!
 //! - Run setup, teardown, and error handling code easily
 //! - Skip any number of ticks easily
+//! - Align to minute/hour/day boundaries
 //!
 //! # Examples
 //!
@@ -27,6 +28,9 @@
 //!         Ok(IntervalNext::Continue)
 //!     }))
 //!     .spawn(&());
+//!
+//! // You should await the returned handle after doing other work - it will automatically be
+//! // cancelled when the end of main is hit
 //! # }
 //! ```
 
@@ -56,7 +60,6 @@
 #![forbid(unsafe_code)]
 
 use std::future::Future;
-use std::ops::Deref;
 use std::pin::Pin;
 use std::time::Duration;
 use time::OffsetDateTime;
@@ -64,7 +67,7 @@ use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior as TokioMTB;
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-type Event<T, E> = for<'a> fn(&'a <T as Deref>::Target) -> BoxFuture<'a, Result<IntervalNext, E>>;
+type Event<T, E> = for<'a> fn(&'a T) -> BoxFuture<'a, Result<IntervalNext, E>>;
 
 /// What to do when a tick is missed due to the task running longer than the specified duration
 #[derive(Copy, Clone, Default)]
@@ -151,10 +154,7 @@ impl AlignTo {
 
 /// Configuration options for the newly created interval
 #[derive(Clone)]
-pub struct IntervalOptions<T, E>
-where
-    T: Deref,
-{
+pub struct IntervalOptions<T, E> {
     /// How often to run the interval
     pub frequency: Duration,
     /// Align interval to start aligned to a specific unit of time - the nearest second/minute/hour
@@ -163,24 +163,21 @@ where
     pub on_missed: MissedTickBehavior,
 
     /// Execute once on start to setup the interval
-    pub on_start: fn(&T::Target) -> BoxFuture<'_, ()>,
+    pub on_start: fn(&T) -> BoxFuture<'_, ()>,
     /// Execute once on end to teardown the interval
     ///
     /// This isn't guaranteed to execute - if the interval is cancelled by an external actor,
     /// this may be skipped.
-    pub on_end: fn(&T::Target) -> BoxFuture<'_, ()>,
+    pub on_end: fn(&T) -> BoxFuture<'_, ()>,
     /// Execute on an error being returned from the interval. The default handler does nothing and
     /// continues execution.
-    pub on_error: fn(&T::Target, E) -> BoxFuture<'_, IntervalNext>,
+    pub on_error: fn(&T, E) -> BoxFuture<'_, IntervalNext>,
     // Hack to allow struct creation syntax while allowing new variants being created
     #[doc(hidden)]
     pub __non_exhaustive: (),
 }
 
-impl<T, E> Default for IntervalOptions<T, E>
-where
-    T: Deref,
-{
+impl<T, E> Default for IntervalOptions<T, E> {
     fn default() -> Self {
         IntervalOptions {
             on_missed: MissedTickBehavior::default(),
@@ -195,10 +192,7 @@ where
 }
 
 /// An interval that can be spawned and
-pub struct Interval<T, E>
-where
-    T: Deref,
-{
+pub struct Interval<T, E> {
     data: T,
     options: IntervalOptions<T, E>,
     event: Event<T, E>,
@@ -206,8 +200,7 @@ where
 
 impl<T, E> Interval<T, E>
 where
-    T: Deref + Send + Sync + 'static,
-    T::Target: Send + Sync + 'static,
+    T: Send + Sync + 'static,
     E: Send + Sync + 'static,
 {
     /// Create an interval builder
@@ -229,6 +222,7 @@ where
             }
 
             let mut interval = tokio::time::interval(opts.frequency);
+            interval.set_missed_tick_behavior(opts.on_missed.into());
             let mut next = IntervalNext::Continue;
             loop {
                 interval.tick().await;
@@ -258,18 +252,14 @@ where
 }
 
 /// Builder to create and configure an interval
-pub struct IntervalBuilder<T, E>
-where
-    T: Deref,
-{
+pub struct IntervalBuilder<T, E> {
     options: Option<IntervalOptions<T, E>>,
     event: Option<Event<T, E>>,
 }
 
 impl<T, E> IntervalBuilder<T, E>
 where
-    T: Deref + Send + Sync + 'static,
-    T::Target: Send + Sync + 'static,
+    T: Send + Sync + 'static,
     E: Send + Sync + 'static,
 {
     fn new() -> Self {
